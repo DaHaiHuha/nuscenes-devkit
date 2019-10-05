@@ -1203,6 +1203,7 @@ class LyftDatasetExplorer:
             box.render(axes[1], view=camera_intrinsic, normalize=True, colors=(c, c, c))
 
         if out_path is not None:
+            print("++==++")
             plt.savefig(out_path)
 
     def render_instance(self, instance_token: str, out_path: str = None) -> None:

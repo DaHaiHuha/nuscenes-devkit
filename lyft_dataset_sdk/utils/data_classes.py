@@ -32,7 +32,7 @@ class PointCloud(ABC):
         :param points: <np.float: d, n>. d-dimensional input point cloud matrix.
         """
         assert points.shape[0] == self.nbr_dims(), (
-            "Error: Pointcloud points must have format: %d x n" % self.nbr_dims()
+                "Error: Pointcloud points must have format: %d x n" % self.nbr_dims()
         )
         self.points = points
 
@@ -61,7 +61,7 @@ class PointCloud(ABC):
 
     @classmethod
     def from_file_multisweep(
-        cls, lyftd, sample_rec: Dict, chan: str, ref_chan: str, num_sweeps: int = 26, min_distance: float = 1.0
+            cls, lyftd, sample_rec: Dict, chan: str, ref_chan: str, num_sweeps: int = 26, min_distance: float = 1.0
     ) -> Tuple["PointCloud", np.ndarray]:
         """Return a point cloud that aggregates multiple sweeps.
         As every sweep is in a different coordinate frame, we need to map the coordinates to a single reference frame.
@@ -198,12 +198,12 @@ class PointCloud(ABC):
         self.points[:3, :] = transf_matrix.dot(np.vstack((self.points[:3, :], np.ones(self.nbr_points()))))[:3, :]
 
     def render_height(
-        self,
-        ax: Axes,
-        view: np.ndarray = np.eye(4),
-        x_lim: Tuple = (-20, 20),
-        y_lim: Tuple = (-20, 20),
-        marker_size: float = 1,
+            self,
+            ax: Axes,
+            view: np.ndarray = np.eye(4),
+            x_lim: Tuple = (-20, 20),
+            y_lim: Tuple = (-20, 20),
+            marker_size: float = 1,
     ) -> None:
         """Simple method that applies a transformation and then scatter plots the points colored by height (z-value).
 
@@ -218,12 +218,12 @@ class PointCloud(ABC):
         self._render_helper(2, ax, view, x_lim, y_lim, marker_size)
 
     def render_intensity(
-        self,
-        ax: Axes,
-        view: np.ndarray = np.eye(4),
-        x_lim: Tuple = (-20, 20),
-        y_lim: Tuple = (-20, 20),
-        marker_size: float = 1,
+            self,
+            ax: Axes,
+            view: np.ndarray = np.eye(4),
+            x_lim: Tuple = (-20, 20),
+            y_lim: Tuple = (-20, 20),
+            marker_size: float = 1,
     ) -> None:
         """Very simple method that applies a transformation and then scatter plots the points colored by intensity.
 
@@ -240,7 +240,7 @@ class PointCloud(ABC):
         self._render_helper(3, ax, view, x_lim, y_lim, marker_size)
 
     def _render_helper(
-        self, color_channel: int, ax: Axes, view: np.ndarray, x_lim: Tuple, y_lim: Tuple, marker_size: float
+            self, color_channel: int, ax: Axes, view: np.ndarray, x_lim: Tuple, y_lim: Tuple, marker_size: float
     ) -> None:
         """Helper function for rendering.
 
@@ -288,7 +288,6 @@ class LidarPointCloud(PointCloud):
 
 
 class RadarPointCloud(PointCloud):
-
     # Class-level settings for radar pointclouds, see from_file().
     invalid_states = [0]  # type: List[int]
     dynprop_states = range(7)  # type: List[int] # Use [0, 2, 6] for moving objects only.
@@ -305,11 +304,11 @@ class RadarPointCloud(PointCloud):
 
     @classmethod
     def from_file(
-        cls,
-        file_name: Path,
-        invalid_states: List[int] = None,
-        dynprop_states: List[int] = None,
-        ambig_states: List[int] = None,
+            cls,
+            file_name: Path,
+            invalid_states: List[int] = None,
+            dynprop_states: List[int] = None,
+            ambig_states: List[int] = None,
     ) -> "RadarPointCloud":
         """Loads RADAR data from a Point Cloud Data file. See details below.
 
@@ -479,15 +478,15 @@ class Box:
     """ Simple data class representing a 3d box including, label, score and velocity. """
 
     def __init__(
-        self,
-        center: List[float],
-        size: List[float],
-        orientation: Quaternion,
-        label: int = np.nan,
-        score: float = np.nan,
-        velocity: Tuple = (np.nan, np.nan, np.nan),
-        name: str = None,
-        token: str = None,
+            self,
+            center: List[float],
+            size: List[float],
+            orientation: Quaternion,
+            label: int = np.nan,
+            score: float = np.nan,
+            velocity: Tuple = (np.nan, np.nan, np.nan),
+            name: str = None,
+            token: str = None,
     ):
         """
 
@@ -500,6 +499,7 @@ class Box:
             velocity: Box velocity in x, y, z direction.
             name: Box name, optional. Can be used e.g. for denote category name.
             token: Unique string identifier from DB.
+
         """
         assert not np.any(np.isnan(center))
         assert not np.any(np.isnan(size))
@@ -523,7 +523,7 @@ class Box:
         label = (self.label == other.label) or (np.isnan(self.label) and np.isnan(other.label))
         score = (self.score == other.score) or (np.isnan(self.score) and np.isnan(other.score))
         vel = np.allclose(self.velocity, other.velocity) or (
-            np.all(np.isnan(self.velocity)) and np.all(np.isnan(other.velocity))
+                np.all(np.isnan(self.velocity)) and np.all(np.isnan(other.velocity))
         )
 
         return center and wlh and orientation and label and score and vel
@@ -612,7 +612,7 @@ class Box:
         corners[0, :] = corners[0, :] + x
         corners[1, :] = corners[1, :] + y
         corners[2, :] = corners[2, :] + z
-
+        # TODO np.ndarray 能不能直接合并在一起?不用经过list呢
         return corners
 
     def bottom_corners(self) -> np.ndarray:
@@ -624,12 +624,12 @@ class Box:
         return self.corners()[:, [2, 3, 7, 6]]
 
     def render(
-        self,
-        axis: Axes,
-        view: np.ndarray = np.eye(3),
-        normalize: bool = False,
-        colors: Tuple = ("b", "r", "k"),
-        linewidth: float = 2,
+            self,
+            axis: Axes,
+            view: np.ndarray = np.eye(3),
+            normalize: bool = False,
+            colors: Tuple = ("b", "r", "k"),
+            linewidth: float = 2,
     ):
         """Renders the box in the provided Matplotlib axis.
 
@@ -674,12 +674,12 @@ class Box:
         )
 
     def render_cv2(
-        self,
-        image: np.ndarray,
-        view: np.ndarray = np.eye(3),
-        normalize: bool = False,
-        colors: Tuple = ((0, 0, 255), (255, 0, 0), (155, 155, 155)),
-        linewidth: int = 2,
+            self,
+            image: np.ndarray,
+            view: np.ndarray = np.eye(3),
+            normalize: bool = False,
+            colors: Tuple = ((0, 0, 255), (255, 0, 0), (155, 155, 155)),
+            linewidth: int = 2,
     ) -> None:
         """Renders box using OpenCV2.
 

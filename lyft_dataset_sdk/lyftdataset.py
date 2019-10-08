@@ -94,7 +94,6 @@ class LyftDataset:
 
         # Initialize LyftDatasetExplorer class
         self.explorer = LyftDatasetExplorer(self)
-        
 
     def __load_table__(self, table_name, verbose=False, missing_ok=False) -> dict:
         """Loads a table."""
@@ -228,11 +227,11 @@ class LyftDataset:
         return self.data_path / sd_record["filename"]
 
     def get_sample_data(
-        self,
-        sample_data_token: str,
-        box_vis_level: BoxVisibility = BoxVisibility.ANY,
-        selected_anntokens: List[str] = None,
-        flat_vehicle_coordinates: bool = False,
+            self,
+            sample_data_token: str,
+            box_vis_level: BoxVisibility = BoxVisibility.ANY,
+            selected_anntokens: List[str] = None,
+            flat_vehicle_coordinates: bool = False,
     ) -> Tuple[Path, List[Box], np.array]:
         """Returns the data path as well as all annotations related to that sample_data.
         The boxes are transformed into the current sensor's coordinate frame.
@@ -290,7 +289,7 @@ class LyftDataset:
                 box.rotate(Quaternion(cs_record["rotation"]).inverse)
 
             if sensor_record["modality"] == "camera" and not box_in_image(
-                box, cam_intrinsic, imsize, vis_level=box_vis_level
+                    box, cam_intrinsic, imsize, vis_level=box_vis_level
             ):
                 continue
 
@@ -454,12 +453,12 @@ class LyftDataset:
         self.explorer.list_sample(sample_token)
 
     def render_pointcloud_in_image(
-        self,
-        sample_token: str,
-        dot_size: int = 5,
-        pointsensor_channel: str = "LIDAR_TOP",
-        camera_channel: str = "CAM_FRONT",
-        out_path: str = None,
+            self,
+            sample_token: str,
+            dot_size: int = 5,
+            pointsensor_channel: str = "LIDAR_TOP",
+            camera_channel: str = "CAM_FRONT",
+            out_path: str = None,
     ) -> None:
         self.explorer.render_pointcloud_in_image(
             sample_token,
@@ -470,24 +469,24 @@ class LyftDataset:
         )
 
     def render_sample(
-        self,
-        sample_token: str,
-        box_vis_level: BoxVisibility = BoxVisibility.ANY,
-        nsweeps: int = 1,
-        out_path: str = None,
+            self,
+            sample_token: str,
+            box_vis_level: BoxVisibility = BoxVisibility.ANY,
+            nsweeps: int = 1,
+            out_path: str = None,
     ) -> None:
         self.explorer.render_sample(sample_token, box_vis_level, nsweeps=nsweeps, out_path=out_path)
 
     def render_sample_data(
-        self,
-        sample_data_token: str,
-        with_anns: bool = True,
-        box_vis_level: BoxVisibility = BoxVisibility.ANY,
-        axes_limit: float = 40,
-        ax: Axes = None,
-        nsweeps: int = 1,
-        out_path: str = None,
-        underlay_map: bool = False,
+            self,
+            sample_data_token: str,
+            with_anns: bool = True,
+            box_vis_level: BoxVisibility = BoxVisibility.ANY,
+            axes_limit: float = 40,
+            ax: Axes = None,
+            nsweeps: int = 1,
+            out_path: str = None,
+            underlay_map: bool = False,
     ) -> None:
         return self.explorer.render_sample_data(
             sample_data_token,
@@ -501,12 +500,12 @@ class LyftDataset:
         )
 
     def render_annotation(
-        self,
-        sample_annotation_token: str,
-        margin: float = 10,
-        view: np.ndarray = np.eye(4),
-        box_vis_level: BoxVisibility = BoxVisibility.ANY,
-        out_path: str = None,
+            self,
+            sample_annotation_token: str,
+            margin: float = 10,
+            view: np.ndarray = np.eye(4),
+            box_vis_level: BoxVisibility = BoxVisibility.ANY,
+            out_path: str = None,
     ) -> None:
         self.explorer.render_annotation(sample_annotation_token, margin, view, box_vis_level, out_path)
 
@@ -517,14 +516,14 @@ class LyftDataset:
         self.explorer.render_scene(scene_token, freq, image_width=imwidth, out_path=out_path)
 
     def render_scene_channel(
-        self,
-        scene_token: str,
-        channel: str = "CAM_FRONT",
-        freq: float = 10,
-        imsize: Tuple[float, float] = (640, 360),
-        out_path: Path = None,
-        interactive: bool = True,
-        verbose: bool = False,
+            self,
+            scene_token: str,
+            channel: str = "CAM_FRONT",
+            freq: float = 10,
+            imsize: Tuple[float, float] = (640, 360),
+            out_path: Path = None,
+            interactive: bool = True,
+            verbose: bool = False,
     ) -> None:
         self.explorer.render_scene_channel(
             scene_token=scene_token,
@@ -538,12 +537,11 @@ class LyftDataset:
 
     def render_egoposes_on_map(self, log_location: str, scene_tokens: List = None, out_path: str = None) -> None:
         self.explorer.render_egoposes_on_map(log_location, scene_tokens, out_path=out_path)
-        
-        
+
     def render_sample_3d_interactive(
-        self, 
-        sample_id: str,
-        render_sample: bool = True
+            self,
+            sample_id: str,
+            render_sample: bool = False
     ) -> None:
         """Render 3D visualization of the sample using plotly
 
@@ -554,10 +552,10 @@ class LyftDataset:
         """
         import pandas as pd
         import plotly.graph_objects as go
-        
+
         sample = self.get('sample', sample_id)
         sample_data = self.get(
-            'sample_data', 
+            'sample_data',
             sample['data']['LIDAR_TOP']
         )
         pc = LidarPointCloud.from_file(
@@ -568,6 +566,7 @@ class LyftDataset:
             sample['data']['LIDAR_TOP'], flat_vehicle_coordinates=False
         )
 
+        # There is a question, why render_sample is not at the end?
         if render_sample:
             self.render_sample(sample_id)
 
@@ -601,7 +600,7 @@ class LyftDataset:
             points = view_points(box.corners(), view=np.eye(3), normalize=False)
             x_lines.extend(points[0, ixs_box_0])
             y_lines.extend(points[1, ixs_box_0])
-            z_lines.extend(points[2, ixs_box_0])    
+            z_lines.extend(points[2, ixs_box_0])
             f_lines_add_nones()
             x_lines.extend(points[0, ixs_box_1])
             y_lines.extend(points[1, ixs_box_1])
@@ -817,12 +816,12 @@ class LyftDatasetExplorer:
         return points, coloring, im
 
     def render_pointcloud_in_image(
-        self,
-        sample_token: str,
-        dot_size: int = 2,
-        pointsensor_channel: str = "LIDAR_TOP",
-        camera_channel: str = "CAM_FRONT",
-        out_path: str = None,
+            self,
+            sample_token: str,
+            dot_size: int = 2,
+            pointsensor_channel: str = "LIDAR_TOP",
+            camera_channel: str = "CAM_FRONT",
+            out_path: str = None,
     ) -> None:
         """Scatter-plots a point-cloud on top of image.
 
@@ -852,7 +851,7 @@ class LyftDatasetExplorer:
             plt.savefig(out_path)
 
     def render_sample(
-        self, token: str, box_vis_level: BoxVisibility = BoxVisibility.ANY, nsweeps: int = 1, out_path: str = None
+            self, token: str, box_vis_level: BoxVisibility = BoxVisibility.ANY, nsweeps: int = 1, out_path: str = None
     ) -> None:
         """Render all LIDAR and camera sample_data in sample along with annotations.
 
@@ -957,15 +956,15 @@ class LyftDatasetExplorer:
         )
 
     def render_sample_data(
-        self,
-        sample_data_token: str,
-        with_anns: bool = True,
-        box_vis_level: BoxVisibility = BoxVisibility.ANY,
-        axes_limit: float = 40,
-        ax: Axes = None,
-        num_sweeps: int = 1,
-        out_path: str = None,
-        underlay_map: bool = False,
+            self,
+            sample_data_token: str,
+            with_anns: bool = True,
+            box_vis_level: BoxVisibility = BoxVisibility.ANY,
+            axes_limit: float = 40,
+            ax: Axes = None,
+            num_sweeps: int = 1,
+            out_path: str = None,
+            underlay_map: bool = False,
     ):
         """Render sample data onto axis.
 
@@ -1140,12 +1139,12 @@ class LyftDatasetExplorer:
             return out_path
 
     def render_annotation(
-        self,
-        ann_token: str,
-        margin: float = 10,
-        view: np.ndarray = np.eye(4),
-        box_vis_level: BoxVisibility = BoxVisibility.ANY,
-        out_path: str = None,
+            self,
+            ann_token: str,
+            margin: float = 10,
+            view: np.ndarray = np.eye(4),
+            box_vis_level: BoxVisibility = BoxVisibility.ANY,
+            out_path: str = None,
     ) -> None:
         """Render selected annotation.
 
@@ -1323,9 +1322,9 @@ class LyftDatasetExplorer:
                         im = im[:, ::-1, :]
 
                     canvas[
-                        layout[channel][1] : layout[channel][1] + image_size[1],
-                        layout[channel][0] : layout[channel][0] + image_size[0],
-                        :,
+                    layout[channel][1]: layout[channel][1] + image_size[1],
+                    layout[channel][0]: layout[channel][0] + image_size[0],
+                    :,
                     ] = im
 
                     prev_recs[channel] = sd_rec  # Store here so we don't render the same image twice.
@@ -1349,14 +1348,14 @@ class LyftDatasetExplorer:
             out.release()
 
     def render_scene_channel(
-        self,
-        scene_token: str,
-        channel: str = "CAM_FRONT",
-        freq: float = 10,
-        image_size: Tuple[float, float] = (640, 360),
-        out_path: Path = None,
-        interactive: bool = True,
-        verbose: bool = False,
+            self,
+            scene_token: str,
+            channel: str = "CAM_FRONT",
+            freq: float = 10,
+            image_size: Tuple[float, float] = (640, 360),
+            out_path: Path = None,
+            interactive: bool = True,
+            verbose: bool = False,
     ) -> None:
         """Renders a full scene for a particular camera channel.
 
@@ -1447,13 +1446,13 @@ class LyftDatasetExplorer:
             out.release()
 
     def render_egoposes_on_map(
-        self,
-        log_location: str,
-        scene_tokens: List = None,
-        close_dist: float = 100,
-        color_fg: Tuple[int, int, int] = (167, 174, 186),
-        color_bg: Tuple[int, int, int] = (255, 255, 255),
-        out_path: Path = None,
+            self,
+            log_location: str,
+            scene_tokens: List = None,
+            close_dist: float = 100,
+            color_fg: Tuple[int, int, int] = (167, 174, 186),
+            color_bg: Tuple[int, int, int] = (255, 255, 255),
+            out_path: Path = None,
     ) -> None:
         """Renders ego poses a the map. These can be filtered by location or scene.
 

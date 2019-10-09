@@ -31,6 +31,43 @@ if not PYTHON_VERSION == 3:
     raise ValueError("LyftDataset sdk only supports Python version 3.")
 
 
+class gt_box_pointrcnn:
+    def __init__(self, seven_num):
+        self.center = seven_num[:3]
+        self.wlh = seven_num[3:6]
+        self.ry = seven_num[6]
+
+    def corners(self, wlh_factor: float = 1.0) -> np.ndarray:
+        """Returns the bounding box corners.
+
+        Args:
+            wlh_factor: Multiply width, length, height by a factor to scale the box.
+
+        Returns: First four corners are the ones facing forward.
+                The last four are the ones facing backwards.
+
+        """
+
+        width, length, height = self.wlh * wlh_factor
+
+        # 3D bounding box corners. (Convention: x points forward, y to the left, z up.)
+        x_corners = length / 2 * np.array([1, 1, 1, 1, -1, -1, -1, -1])
+        y_corners = width / 2 * np.array([1, -1, -1, 1, 1, -1, -1, 1])
+        z_corners = height / 2 * np.array([1, 1, -1, -1, 1, 1, -1, -1])
+        corners = np.vstack((x_corners, y_corners, z_corners))
+
+        # Rotate
+        #         corners = np.dot(self.orientation.rotation_matrix, corners)
+
+        # Translate
+        x, y, z = self.center
+        corners[0, :] = corners[0, :] + x
+        corners[1, :] = corners[1, :] + y
+        corners[2, :] = corners[2, :] + z
+        # TODO np.ndarray 能不能直接合并在一起?不用经过list呢
+        return corners
+
+
 class LyftDataset:
     """Database class for Lyft Dataset to help query and retrieve information from the database."""
 
@@ -569,6 +606,97 @@ class LyftDataset:
         # There is a question, why render_sample is not at the end?
         if render_sample:
             self.render_sample(sample_id)
+
+        df_tmp = pd.DataFrame(pc.points[:3, :].T, columns=['x', 'y', 'z'])
+        df_tmp['norm'] = np.sqrt(np.power(df_tmp[['x', 'y', 'z']].values, 2).sum(axis=1))
+        scatter = go.Scatter3d(
+            x=df_tmp['x'],
+            y=df_tmp['y'],
+            z=df_tmp['z'],
+            mode='markers',
+            marker=dict(
+                size=1,
+                color=df_tmp['norm'],
+                opacity=0.8
+            )
+        )
+
+        x_lines = []
+        y_lines = []
+        z_lines = []
+
+        def f_lines_add_nones():
+            x_lines.append(None)
+            y_lines.append(None)
+            z_lines.append(None)
+
+        ixs_box_0 = [0, 1, 2, 3, 0]
+        ixs_box_1 = [4, 5, 6, 7, 4]
+
+        for box in boxes:
+            points = view_points(box.corners(), view=np.eye(3), normalize=False)
+            x_lines.extend(points[0, ixs_box_0])
+            y_lines.extend(points[1, ixs_box_0])
+            z_lines.extend(points[2, ixs_box_0])
+            f_lines_add_nones()
+            x_lines.extend(points[0, ixs_box_1])
+            y_lines.extend(points[1, ixs_box_1])
+            z_lines.extend(points[2, ixs_box_1])
+            f_lines_add_nones()
+            for i in range(4):
+                x_lines.extend(points[0, [ixs_box_0[i], ixs_box_1[i]]])
+                y_lines.extend(points[1, [ixs_box_0[i], ixs_box_1[i]]])
+                z_lines.extend(points[2, [ixs_box_0[i], ixs_box_1[i]]])
+                f_lines_add_nones()
+
+        lines = go.Scatter3d(
+            x=x_lines,
+            y=y_lines,
+            z=z_lines,
+            mode='lines',
+            name='lines'
+        )
+
+        fig = go.Figure(data=[scatter, lines])
+        fig.update_layout(scene_aspectmode='data')
+        fig.show()
+
+    @staticmethod
+    def render_lyft_sample_3d_interactive(level5data, sample_id: str, render_sample: bool = False, external_data=None,
+                                          gt_boxes=None) -> None:
+        """Render 3D visualization of the sample using plotly
+
+        Args:
+            sample_id: Unique sample identifier.
+            render_sample: call level5data.render_sample (Render all LIDAR and camera sample_data in sample along with annotations.)
+
+        """
+        import pandas as pd
+        import plotly.graph_objects as go
+
+        sample = level5data.get('sample', sample_id)
+        sample_data = level5data.get(
+            'sample_data',
+            sample['data']['LIDAR_TOP']
+        )
+        pc = LidarPointCloud.from_file(
+            Path(os.path.join(str(level5data.data_path),
+                              sample_data['filename']))
+        )
+        # Here, they read the boxes and the boxes is alreadey converted to vehicle coordinate
+        if external_data is None:
+            _, boxes, _ = level5data.get_sample_data(
+                sample['data']['LIDAR_TOP'], flat_vehicle_coordinates=False
+            )
+        else:
+            boxes = [gt_box_pointrcnn(single_box) for single_box in external_data]
+
+        if gt_boxes is not None:
+            boxes = gt_boxes
+        # There is a question, why render_sample is not at the end?
+        # and in default, I'd like to set as False
+        if render_sample:
+            level5data.render_sample(sample_id)
 
         df_tmp = pd.DataFrame(pc.points[:3, :].T, columns=['x', 'y', 'z'])
         df_tmp['norm'] = np.sqrt(np.power(df_tmp[['x', 'y', 'z']].values, 2).sum(axis=1))

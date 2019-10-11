@@ -585,7 +585,7 @@ class Box:
         self.orientation = quaternion * self.orientation
         self.velocity = np.dot(quaternion.rotation_matrix, self.velocity)
 
-    def corners(self, wlh_factor: float = 1.0) -> np.ndarray:
+    def corners(self, wlh_factor: float = 1.0, xyz_conv=False) -> np.ndarray:
         """Returns the bounding box corners.
 
         Args:
@@ -595,6 +595,7 @@ class Box:
                 The last four are the ones facing backwards.
 
         """
+        # (-y, z, x, h, w, l, ry)
 
         width, length, height = self.wlh * wlh_factor
 
@@ -612,7 +613,15 @@ class Box:
         corners[0, :] = corners[0, :] + x
         corners[1, :] = corners[1, :] + y
         corners[2, :] = corners[2, :] + z
-        # TODO np.ndarray 能不能直接合并在一起?不用经过list呢
+        # # TODO np.ndarray 能不能直接合并在一起?不用经过list呢
+        # if xyz_conv is True:
+        #     corners = corners[[1, 2, 0], :]
+        #     corners[0, :] = -corners[0, :]
+        #     corners[1, :] = -corners[1, :]
+        # elif xyz_conv==-1:
+        #     corners = corners[[2, 0, 1], :]
+        #     corners[2, :] = -corners[2, :]
+        #     corners[1, :] = -corners[1, :]
         return corners
 
     def bottom_corners(self) -> np.ndarray:
@@ -733,3 +742,15 @@ class Box:
 
         """
         return copy.deepcopy(self)
+
+    @staticmethod
+    def conv_kitti(box):
+
+        kitti_box = (-box.center[1], -box.center[2]+box.wlh[2]/2.0, box.center[0], box.wlh[2], box.wlh[0], box.wlh[1], box.orientation.yaw_pitch_roll[0])
+
+        return kitti_box
+    # kitti_to_nu_lidar_inv = Quaternion(axis=(0, 0, 1), angle=np.pi/2).inverse
+
+    # box.rotate(kitti_to_nu_lidar_inv)
+
+    # box.translate(np.array([0, box.wlh[2]/2.0, 0]))

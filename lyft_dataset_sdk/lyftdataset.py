@@ -752,6 +752,160 @@ class LyftDataset:
         fig.update_layout(scene_aspectmode='data')
         fig.show()
 
+    @staticmethod
+    def render_debug_sample_3d_interactive(debug=True,level5data=None, sample_id: str = None, render_sample: bool = False, external_data=None,
+                                      gt_boxes=None, pc_input=None, seg_result=None) -> None:
+        """
+        This function is assume that all the necessary components are given and just plot it out to
+        varify the outcome of model function
+        [pc_input, external_data, seg_result, gt_boxes] are give by evauation function,
+        boxes are given by external_data
+
+
+        Render 3D visualization of the sample using plotly
+
+        Args:
+            sample_id: Unique sample identifier.
+            render_sample: call level5data.render_sample (Render all LIDAR and camera sample_data in sample along with annotations.)
+
+        """
+        import pandas as pd
+        import plotly.graph_objects as go
+
+
+        if debug==False:
+            sample = level5data.get('sample', sample_id)
+            sample_data = level5data.get(
+                'sample_data',
+                sample['data']['LIDAR_TOP']
+            )
+            pc = LidarPointCloud.from_file(
+                Path(os.path.join(str(level5data.data_path),
+                                  sample_data['filename']))
+            )
+            _, boxes, _ = level5data.get_sample_data(
+                sample['data']['LIDAR_TOP'], flat_vehicle_coordinates=False
+            )
+        else:
+            pc = pc_input
+            # Here, they read the boxes and the boxes is alreadey converted to vehicle coordinate
+            boxes = [gt_box_pointrcnn(single_box) for single_box in external_data]
+
+        # if gt_boxes is not None:
+        #     boxes = gt_boxes
+
+        # There is a question, why render_sample is not at the end?
+        # and in default, I'd like to set as False
+
+        if render_sample and debug is False:
+            level5data.render_sample(sample_id)
+        if debug is None:
+            df_tmp = pd.DataFrame(pc.points[:3, :].T, columns=['x', 'y', 'z'])
+        else:
+            bg_list = np.where(seg_result==0)
+            fg_list = np.where(seg_result==1)
+            df_tmp = pd.DataFrame(pc[bg_list], columns=['x', 'y', 'z'])
+            df_pred = pd.DataFrame(pc[fg_list], columns=['x', 'y', 'z'])
+        df_tmp['norm'] = np.sqrt(np.power(df_tmp[['x', 'y', 'z']].values, 2).sum(axis=1))
+        bg_scatter = go.Scatter3d(
+            x=df_tmp['x'],
+            y=df_tmp['y'],
+            z=df_tmp['z'],
+            mode='markers',
+            marker=dict(
+                size=1,
+                color='blue',# seg_result if seg_result is not None else df_tmp['norm'],
+    #             colorscale='Viridis',
+                opacity=0.8
+            )
+        )
+
+        fg_scatter = go.Scatter3d(
+            x=df_pred['x'],
+            y=df_pred['y'],
+            z=df_pred['z'],
+            mode='markers',
+            marker=dict(
+                size=1,
+                color='yellow',# seg_result if seg_result is not None else df_tmp['norm'],
+    #             colorscale='Viridis',
+                opacity=0.8
+            )
+        )
+
+        x_lines = []
+        y_lines = []
+        z_lines = []
+
+        def f_lines_add_nones():
+            x_lines.append(None)
+            y_lines.append(None)
+            z_lines.append(None)
+
+        ixs_box_0 = [0, 1, 2, 3, 0]
+        ixs_box_1 = [4, 5, 6, 7, 4]
+
+        for box in boxes:
+            points = view_points(box.corners(), view=np.eye(3), normalize=False)
+            x_lines.extend(points[0, ixs_box_0])
+            y_lines.extend(points[1, ixs_box_0])
+            z_lines.extend(points[2, ixs_box_0])
+            f_lines_add_nones()
+            x_lines.extend(points[0, ixs_box_1])
+            y_lines.extend(points[1, ixs_box_1])
+            z_lines.extend(points[2, ixs_box_1])
+            f_lines_add_nones()
+            for i in range(4):
+                x_lines.extend(points[0, [ixs_box_0[i], ixs_box_1[i]]])
+                y_lines.extend(points[1, [ixs_box_0[i], ixs_box_1[i]]])
+                z_lines.extend(points[2, [ixs_box_0[i], ixs_box_1[i]]])
+                f_lines_add_nones()
+
+        lines = go.Scatter3d(
+            x=x_lines,
+            y=y_lines,
+            z=z_lines,
+            mode='lines',
+            name='lines',
+            marker=dict(color='red')
+        )
+        if gt_boxes is not None:
+
+            x_lines = []
+            y_lines = []
+            z_lines = []
+
+            gt_box = [gt_box_pointrcnn(single_box) for single_box in gt_boxes]
+
+            for box in gt_box:
+                points = view_points(box.corners(), view=np.eye(3), normalize=False)
+                x_lines.extend(points[0, ixs_box_0])
+                y_lines.extend(points[1, ixs_box_0])
+                z_lines.extend(points[2, ixs_box_0])
+                f_lines_add_nones()
+                x_lines.extend(points[0, ixs_box_1])
+                y_lines.extend(points[1, ixs_box_1])
+                z_lines.extend(points[2, ixs_box_1])
+                f_lines_add_nones()
+                for i in range(4):
+                    x_lines.extend(points[0, [ixs_box_0[i], ixs_box_1[i]]])
+                    y_lines.extend(points[1, [ixs_box_0[i], ixs_box_1[i]]])
+                    z_lines.extend(points[2, [ixs_box_0[i], ixs_box_1[i]]])
+                    f_lines_add_nones()
+
+            gt_lines = go.Scatter3d(
+                x=x_lines,
+                y=y_lines,
+                z=z_lines,
+                mode='lines',
+                name='lines',
+                marker=dict(color='green')
+            )
+
+        fig = go.Figure(data=[bg_scatter, fg_scatter, lines, gt_lines])
+        fig.update_layout(scene_aspectmode='data')
+        fig.show()
+
 
 class LyftDatasetExplorer:
     """Helper class to list and visualize Lyft Dataset data. These are meant to serve as tutorials and templates for
@@ -1676,3 +1830,8 @@ class LyftDatasetExplorer:
         if out_path is not None:
             plt.savefig(str(out_path))
             plt.close("all")
+
+
+if __name__ == "__main__":
+    pc_input, external_data, seg_result, gt_boxes = np.load('/home2/lhr/cdh_ws/kaggle/PointRCNN/data/debug/095d5bb88eb9cdd223b90d2a1475c0cf2f4b4c2a8aca82ba0ae51f6fba540440.npy', allow_pickle=True)
+    LyftDataset.render_debug_sample_3d_interactive(debug=True, pc_input=pc_input, external_data=external_data, seg_result=seg_result, gt_boxes=gt_boxes)

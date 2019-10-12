@@ -32,9 +32,13 @@ if not PYTHON_VERSION == 3:
 
 
 class gt_box_pointrcnn:
+    #     (-y, -z, x, h, w, l, ry) is seven_num
     def __init__(self, seven_num):
-        self.center = seven_num[:3]
-        self.wlh = seven_num[3:6]
+        self.center = seven_num[[2, 0, 1]]
+        self.center[1] = -self.center[1]
+        self.center[2] = -self.center[2]
+        self.wlh = seven_num[[4, 5, 3]]
+        self.center[2] += self.wlh[2]/2
         self.ry = seven_num[6]
 
     def corners(self, wlh_factor: float = 1.0) -> np.ndarray:
@@ -906,7 +910,134 @@ class LyftDataset:
         fig.update_layout(scene_aspectmode='data')
         fig.show()
 
+    @staticmethod
+    def render_rpn_result(pc_input, pred_boxes, seg_result, gt_boxes) -> None:
+        """Render 3D visualization of the sample using plotly
 
+        This function is assume that all the necessary components are given and just plot it out to
+        varify the outcome of model function
+        [pc_input, external_data, seg_result, gt_boxes] are give by evauation function,
+        boxes are given by external_data
+
+        Args:
+            sample_id: Unique sample identifier.
+            render_sample: call level5data.render_sample (Render all LIDAR and camera sample_data in sample along with annotations.)
+
+        """
+        import pandas as pd
+        import plotly.graph_objects as go
+
+        pc_input = pc_input[:, [2, 0, 1]]
+        pc_input[:, 1] = -pc_input[:, 1]
+        pc_input[:, 2] = -pc_input[:, 2]
+
+
+        bg_flag = np.where(seg_result == 0)[0]
+        df_tmp = pd.DataFrame(pc_input[bg_flag], columns=['x', 'y', 'z'])
+
+        # df_tmp['norm'] = np.sqrt(np.power(df_tmp[['x', 'y', 'z']].values, 2).sum(axis=1))
+
+        bg_scatter = go.Scatter3d(
+            x=df_tmp['x'],
+            y=df_tmp['y'],
+            z=df_tmp['z'],
+            mode='markers',
+            marker=dict(
+                size=1,
+                color='blue',
+                opacity=0.8
+            )
+        )
+
+        fg_flag = np.where(seg_result == 1)[0]
+        df_tmp1 = pd.DataFrame(pc_input[fg_flag], columns=['x', 'y', 'z'])
+        fg_scatter = go.Scatter3d(
+            x=df_tmp1['x'],
+            y=df_tmp1['y'],
+            z=df_tmp1['z'],
+            mode='markers',
+            marker=dict(
+                size=1,
+                color='yellow',
+                opacity=0.8
+            )
+        )
+
+        x_lines = []
+        y_lines = []
+        z_lines = []
+
+        def f_lines_add_nones():
+            x_lines.append(None)
+            y_lines.append(None)
+            z_lines.append(None)
+
+        ixs_box_0 = [0, 1, 2, 3, 0]
+        ixs_box_1 = [4, 5, 6, 7, 4]
+
+        # Here, they read the boxes and the boxes is alreadey converted to vehicle coordinate
+        # But it's KITTI format, so convert it to NuScence
+
+        boxes = [gt_box_pointrcnn(single_box) for single_box in pred_boxes]
+
+        for box in boxes:
+            points = view_points(box.corners(), view=np.eye(3), normalize=False)
+            x_lines.extend(points[0, ixs_box_0])
+            y_lines.extend(points[1, ixs_box_0])
+            z_lines.extend(points[2, ixs_box_0])
+            f_lines_add_nones()
+            x_lines.extend(points[0, ixs_box_1])
+            y_lines.extend(points[1, ixs_box_1])
+            z_lines.extend(points[2, ixs_box_1])
+            f_lines_add_nones()
+            for i in range(4):
+                x_lines.extend(points[0, [ixs_box_0[i], ixs_box_1[i]]])
+                y_lines.extend(points[1, [ixs_box_0[i], ixs_box_1[i]]])
+                z_lines.extend(points[2, [ixs_box_0[i], ixs_box_1[i]]])
+                f_lines_add_nones()
+
+        lines = go.Scatter3d(
+            x=x_lines,
+            y=y_lines,
+            z=z_lines,
+            mode='lines',
+            name='lines',
+            marker=dict(color='green')
+        )
+
+        x_lines = []
+        y_lines = []
+        z_lines = []
+
+        gt_boxes = [gt_box_pointrcnn(single_box) for single_box in gt_boxes]
+        for box in gt_boxes:
+            points = view_points(box.corners(), view=np.eye(3), normalize=False)
+            x_lines.extend(points[0, ixs_box_0])
+            y_lines.extend(points[1, ixs_box_0])
+            z_lines.extend(points[2, ixs_box_0])
+            f_lines_add_nones()
+            x_lines.extend(points[0, ixs_box_1])
+            y_lines.extend(points[1, ixs_box_1])
+            z_lines.extend(points[2, ixs_box_1])
+            f_lines_add_nones()
+            for i in range(4):
+                x_lines.extend(points[0, [ixs_box_0[i], ixs_box_1[i]]])
+                y_lines.extend(points[1, [ixs_box_0[i], ixs_box_1[i]]])
+                z_lines.extend(points[2, [ixs_box_0[i], ixs_box_1[i]]])
+                f_lines_add_nones()
+
+        gt_truth = go.Scatter3d(
+            x=x_lines,
+            y=y_lines,
+            z=z_lines,
+            mode='lines',
+            name='lines',
+            marker=dict(color='red')
+        )
+
+        fig = go.Figure(data=[bg_scatter, fg_scatter, lines, gt_truth])
+        fig.update_layout(scene_aspectmode='data')
+        fig.show()
 class LyftDatasetExplorer:
     """Helper class to list and visualize Lyft Dataset data. These are meant to serve as tutorials and templates for
     working with the data."""
@@ -1833,5 +1964,20 @@ class LyftDatasetExplorer:
 
 
 if __name__ == "__main__":
-    pc_input, external_data, seg_result, gt_boxes = np.load('/home2/lhr/cdh_ws/kaggle/PointRCNN/data/debug/095d5bb88eb9cdd223b90d2a1475c0cf2f4b4c2a8aca82ba0ae51f6fba540440.npy', allow_pickle=True)
-    LyftDataset.render_debug_sample_3d_interactive(debug=True, pc_input=pc_input, external_data=external_data, seg_result=seg_result, gt_boxes=gt_boxes)
+    path_pre = '/home2/lhr/dataset/full_lyft24'
+    sample_list = np.sort(os.listdir(path_pre))
+    # sample_list.sort(key=lambda x: int(x[:2]))
+    result_pre = '/home2/lhr/cdh_ws/kaggle/PointRCNN/data/debug'
+    result_list = np.sort(os.listdir(result_pre))
+
+    # ('cur_pts_rect', type(cur_pts_rect), 'gt_boxes3d', type(gt_boxes3d[bs_idx]))
+    # debug for rpn result
+    save_result = np.load(os.path.join(result_pre, result_list[10]), allow_pickle=True)
+    pc_input, pred_boxes, seg_result, gt_boxes = save_result
+    # save_result
+    LyftDataset.render_rpn_result(pc_input, pred_boxes, seg_result, gt_boxes)
+
+
+
+    # pc_input, external_data, seg_result, gt_boxes = np.load('/home2/lhr/cdh_ws/kaggle/PointRCNN/data/debug/095d5bb88eb9cdd223b90d2a1475c0cf2f4b4c2a8aca82ba0ae51f6fba540440.npy', allow_pickle=True)
+    # LyftDataset.render_debug_sample_3d_interactive(debug=True, pc_input=pc_input, external_data=external_data, seg_result=seg_result, gt_boxes=gt_boxes)

@@ -585,7 +585,7 @@ class Box:
         self.orientation = quaternion * self.orientation
         self.velocity = np.dot(quaternion.rotation_matrix, self.velocity)
 
-    def corners(self, wlh_factor: float = 1.0, xyz_conv=False) -> np.ndarray:
+    def corners(self, wlh_factor: float = 1.0) -> np.ndarray:
         """Returns the bounding box corners.
 
         Args:
@@ -743,12 +743,14 @@ class Box:
         """
         return copy.deepcopy(self)
 
-    @staticmethod
-    def conv_kitti(box):
+    # @staticmethod
+    # def conv_kitti(box):
+    #
+    #     kitti_box = (-box.center[1], -box.center[2]+box.wlh[2]/2.0, box.center[0], box.wlh[2], box.wlh[0], box.wlh[1], box.orientation.yaw_pitch_roll[0])
+    #
+    #     return kitti_box
 
-        kitti_box = (-box.center[1], -box.center[2]+box.wlh[2]/2.0, box.center[0], box.wlh[2], box.wlh[0], box.wlh[1], box.orientation.yaw_pitch_roll[0])
 
-        return kitti_box
     # kitti_to_nu_lidar_inv = Quaternion(axis=(0, 0, 1), angle=np.pi/2).inverse
 
     # box.rotate(kitti_to_nu_lidar_inv)

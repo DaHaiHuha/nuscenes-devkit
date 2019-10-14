@@ -33,13 +33,22 @@ if not PYTHON_VERSION == 3:
 
 class gt_box_pointrcnn:
     #     (-y, -z, x, h, w, l, ry) is seven_num
-    def __init__(self, seven_num):
-        self.center = seven_num[[2, 0, 1]]
-        self.center[1] = -self.center[1]
-        self.center[2] = -self.center[2]
-        self.wlh = seven_num[[4, 5, 3]]
-        self.center[2] += self.wlh[2]/2
+    def __init__(self, seven_num, mode: str='kitti2lyft'):
+        if mode=='identity':
+            self.center = seven_num[:3]
+            self.wlh = seven_num[3:6]
+        elif mode=='kitti2lyft':
+            self.center = seven_num[[2, 0, 1]]
+            self.center[1] = -self.center[1]
+            self.center[2] = -self.center[2]
+            self.wlh = seven_num[[4, 5, 3]]
+            self.center[2] += self.wlh[2] / 2
+        else:
+            raise NotImplementedError
         self.ry = seven_num[6]
+
+        if len(seven_num)==8:
+            self.cls = seven_num[7]
 
     def corners(self, wlh_factor: float = 1.0) -> np.ndarray:
         """Returns the bounding box corners.
@@ -1038,6 +1047,196 @@ class LyftDataset:
         fig = go.Figure(data=[bg_scatter, fg_scatter, lines, gt_truth])
         fig.update_layout(scene_aspectmode='data')
         fig.show()
+
+    @staticmethod
+    def render_rcnn_result(pc_input, pred_boxes, seg_result, gt_boxes, roi_boxes3d_np=None, rpn_cls_np=None) -> None:
+        """Render 3D visualization of the sample using plotly
+
+        This file is going to render eval result of PointRCNN's rcnn period result.
+        with
+                        save_list = [rpn_xyz_np[k], pred_boxes3d_np[k], seg_result_np[k],
+                                 gt_boxes3d[k], roi_boxes3d_np[k], rpn_cls_np[k]]
+
+        This function is assume that all the necessary components are given and just plot it out to
+        varify the outcome of model function
+        [pc_input, external_data, seg_result, gt_boxes] are give by evauation function,
+        boxes are given by external_data
+
+        Args:
+            sample_id: Unique sample identifier.
+            render_sample: call level5data.render_sample (Render all LIDAR and camera sample_data in sample along with annotations.)
+
+        """
+        import pandas as pd
+        import plotly.graph_objects as go
+
+        pc_input = pc_input[:, [2, 0, 1]]
+        pc_input[:, 1] = -pc_input[:, 1]
+        pc_input[:, 2] = -pc_input[:, 2]
+
+        if rpn_cls_np is None:
+            bg_flag = np.where(seg_result == 0)[0]
+            df_tmp = pd.DataFrame(pc_input[bg_flag], columns=['x', 'y', 'z'])
+
+            # df_tmp['norm'] = np.sqrt(np.power(df_tmp[['x', 'y', 'z']].values, 2).sum(axis=1))
+
+            bg_scatter = go.Scatter3d(
+                x=df_tmp['x'],
+                y=df_tmp['y'],
+                z=df_tmp['z'],
+                mode='markers',
+                name='bg_points',
+                marker=dict(
+                    size=1,
+                    color='blue',
+                    opacity=0.8
+                )
+            )
+
+            fg_flag = np.where(seg_result == 1)[0]
+            df_tmp1 = pd.DataFrame(pc_input[fg_flag], columns=['x', 'y', 'z'])
+            fg_scatter = go.Scatter3d(
+                x=df_tmp1['x'],
+                y=df_tmp1['y'],
+                z=df_tmp1['z'],
+                mode='markers',
+                name='fg_points',
+                marker=dict(
+                    size=1,
+                    color='yellow',
+                    opacity=0.8
+                )
+            )
+        else:
+            df_tmp = pd.DataFrame(pc_input, columns=['x', 'y', 'z'])
+
+            # df_tmp['norm'] = np.sqrt(np.power(df_tmp[['x', 'y', 'z']].values, 2).sum(axis=1))
+
+            point_scatter = go.Scatter3d(
+                x=df_tmp['x'],
+                y=df_tmp['y'],
+                z=df_tmp['z'],
+                mode='markers',
+                name='PointCloud-Class',
+                marker=dict(
+                    size=1,
+                    color=rpn_cls_np,
+                    opacity=0.8
+                )
+            )
+
+        x_lines = []
+        y_lines = []
+        z_lines = []
+
+        def f_lines_add_nones():
+            x_lines.append(None)
+            y_lines.append(None)
+            z_lines.append(None)
+
+        ixs_box_0 = [0, 1, 2, 3, 0]
+        ixs_box_1 = [4, 5, 6, 7, 4]
+
+        # Here, they read the boxes and the boxes is alreadey converted to vehicle coordinate
+        # But it's KITTI format, so convert it to NuScence
+
+        boxes = [gt_box_pointrcnn(single_box) for single_box in pred_boxes]
+
+        for box in boxes:
+            points = view_points(box.corners(), view=np.eye(3), normalize=False)
+            x_lines.extend(points[0, ixs_box_0])
+            y_lines.extend(points[1, ixs_box_0])
+            z_lines.extend(points[2, ixs_box_0])
+            f_lines_add_nones()
+            x_lines.extend(points[0, ixs_box_1])
+            y_lines.extend(points[1, ixs_box_1])
+            z_lines.extend(points[2, ixs_box_1])
+            f_lines_add_nones()
+            for i in range(4):
+                x_lines.extend(points[0, [ixs_box_0[i], ixs_box_1[i]]])
+                y_lines.extend(points[1, [ixs_box_0[i], ixs_box_1[i]]])
+                z_lines.extend(points[2, [ixs_box_0[i], ixs_box_1[i]]])
+                f_lines_add_nones()
+
+        pre_box = go.Scatter3d(
+            x=x_lines,
+            y=y_lines,
+            z=z_lines,
+            mode='lines',
+            name='pred_boxes',
+            marker=dict(color='red')
+        )
+
+        x_lines = []
+        y_lines = []
+        z_lines = []
+
+        gt_boxes = [gt_box_pointrcnn(single_box) for single_box in gt_boxes]
+        for box in gt_boxes:
+            points = view_points(box.corners(), view=np.eye(3), normalize=False)
+            x_lines.extend(points[0, ixs_box_0])
+            y_lines.extend(points[1, ixs_box_0])
+            z_lines.extend(points[2, ixs_box_0])
+            f_lines_add_nones()
+            x_lines.extend(points[0, ixs_box_1])
+            y_lines.extend(points[1, ixs_box_1])
+            z_lines.extend(points[2, ixs_box_1])
+            f_lines_add_nones()
+            for i in range(4):
+                x_lines.extend(points[0, [ixs_box_0[i], ixs_box_1[i]]])
+                y_lines.extend(points[1, [ixs_box_0[i], ixs_box_1[i]]])
+                z_lines.extend(points[2, [ixs_box_0[i], ixs_box_1[i]]])
+                f_lines_add_nones()
+
+        gt_truth = go.Scatter3d(
+            x=x_lines,
+            y=y_lines,
+            z=z_lines,
+            mode='lines',
+            name='gt_truth',
+            marker=dict(color='green')
+        )
+
+        if roi_boxes3d_np is not None:
+
+            x_lines = []
+            y_lines = []
+            z_lines = []
+
+            gt_boxes = [gt_box_pointrcnn(single_box) for single_box in roi_boxes3d_np]
+            for box in gt_boxes:
+                points = view_points(box.corners(), view=np.eye(3), normalize=False)
+                x_lines.extend(points[0, ixs_box_0])
+                y_lines.extend(points[1, ixs_box_0])
+                z_lines.extend(points[2, ixs_box_0])
+                f_lines_add_nones()
+                x_lines.extend(points[0, ixs_box_1])
+                y_lines.extend(points[1, ixs_box_1])
+                z_lines.extend(points[2, ixs_box_1])
+                f_lines_add_nones()
+                for i in range(4):
+                    x_lines.extend(points[0, [ixs_box_0[i], ixs_box_1[i]]])
+                    y_lines.extend(points[1, [ixs_box_0[i], ixs_box_1[i]]])
+                    z_lines.extend(points[2, [ixs_box_0[i], ixs_box_1[i]]])
+                    f_lines_add_nones()
+
+            roi_truth = go.Scatter3d(
+                x=x_lines,
+                y=y_lines,
+                z=z_lines,
+                mode='lines',
+                name='roi_boxes3d',
+                marker=dict(color='purple')
+            )
+        data=[bg_scatter, fg_scatter, pre_box, gt_truth]
+        if rpn_cls_np is not None:
+            data = [point_scatter, pre_box, gt_truth]
+        if roi_boxes3d_np is not None:
+            data.append[roi_truth]
+        fig = go.Figure()
+        fig.update_layout(scene_aspectmode='data')
+        fig.show()
+
 class LyftDatasetExplorer:
     """Helper class to list and visualize Lyft Dataset data. These are meant to serve as tutorials and templates for
     working with the data."""

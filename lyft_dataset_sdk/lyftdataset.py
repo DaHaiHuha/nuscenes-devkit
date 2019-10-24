@@ -33,26 +33,64 @@ if not PYTHON_VERSION == 3:
 
 class gt_box_pointrcnn:
     #     (-y, -z, x, h, w, l, ry) is seven_num
-    def __init__(self, seven_num, mode: str='kitti2lyft'):
-        if mode=='identity':
+    def __init__(self, seven_num, mode: str = 'kitti2lyft'):
+        self.format = 'kitti'
+        if mode == 'identity':
             self.center = seven_num[:3]
             self.wlh = seven_num[3:6]
-        elif mode=='kitti2lyft':
+            print('Using default format as kitti')
+        elif mode == 'kitti2lyft':
             self.center = seven_num[[2, 0, 1]]
             self.center[1] = -self.center[1]
             self.center[2] = -self.center[2]
             self.wlh = seven_num[[4, 5, 3]]
             self.center[2] += self.wlh[2] / 2
+            self.format = 'lyft'
+        #  因为lyft2kitti在预处理阶段完成了，所以此处没有涉及
         else:
             raise NotImplementedError
         self.ry = seven_num[6]
 
-        if len(seven_num)==8:
+        if len(seven_num) == 8:
             self.cls = seven_num[7]
+        elif len(seven_num) == 9:
+            self.cls = seven_num[7]
+            self.score = seven_num[8]
+            self.format = 'lyft_pred'
+
+            self.orientation = Quaternion(axis=[0, 0, 1], angle=self.ry)
+
+    @property
+    def rotation_matrix(self) -> np.ndarray:
+        """Return a rotation matrix.
+
+        Returns: <np.float: 3, 3>. The box's rotation matrix.
+
+        """
+        return self.orientation.rotation_matrix
+
+    def translate(self, x: np.ndarray) -> None:
+        """Applies a translation.
+
+        Args:
+            x: <np.float: 3, 1>. Translation in x, y, z direction.
+
+        """
+        self.center += x
+
+    def rotate(self, quaternion: Quaternion) -> None:
+        """Rotates box.
+
+        Args:
+            quaternion: Rotation to apply.
+
+        """
+        self.center = np.dot(quaternion.rotation_matrix, self.center)
+        self.orientation = quaternion * self.orientation
 
     def corners(self, wlh_factor: float = 1.0) -> np.ndarray:
         """Returns the bounding box corners.
-
+        这个函数简单完成由返回八个顶点的任务，所以务必在使用之前先进行初始化
         Args:
             wlh_factor: Multiply width, length, height by a factor to scale the box.
 
@@ -77,7 +115,7 @@ class gt_box_pointrcnn:
         corners[0, :] = corners[0, :] + x
         corners[1, :] = corners[1, :] + y
         corners[2, :] = corners[2, :] + z
-        # TODO np.ndarray 能不能直接合并在一起?不用经过list呢
+        # TODO
         return corners
 
 
@@ -766,8 +804,9 @@ class LyftDataset:
         fig.show()
 
     @staticmethod
-    def render_debug_sample_3d_interactive(debug=True,level5data=None, sample_id: str = None, render_sample: bool = False, external_data=None,
-                                      gt_boxes=None, pc_input=None, seg_result=None) -> None:
+    def render_debug_sample_3d_interactive(debug=True, level5data=None, sample_id: str = None,
+                                           render_sample: bool = False, external_data=None,
+                                           gt_boxes=None, pc_input=None, seg_result=None) -> None:
         """
         This function is assume that all the necessary components are given and just plot it out to
         varify the outcome of model function
@@ -785,8 +824,7 @@ class LyftDataset:
         import pandas as pd
         import plotly.graph_objects as go
 
-
-        if debug==False:
+        if debug == False:
             sample = level5data.get('sample', sample_id)
             sample_data = level5data.get(
                 'sample_data',
@@ -815,8 +853,8 @@ class LyftDataset:
         if debug is None:
             df_tmp = pd.DataFrame(pc.points[:3, :].T, columns=['x', 'y', 'z'])
         else:
-            bg_list = np.where(seg_result==0)
-            fg_list = np.where(seg_result==1)
+            bg_list = np.where(seg_result == 0)
+            fg_list = np.where(seg_result == 1)
             df_tmp = pd.DataFrame(pc[bg_list], columns=['x', 'y', 'z'])
             df_pred = pd.DataFrame(pc[fg_list], columns=['x', 'y', 'z'])
         df_tmp['norm'] = np.sqrt(np.power(df_tmp[['x', 'y', 'z']].values, 2).sum(axis=1))
@@ -827,8 +865,8 @@ class LyftDataset:
             mode='markers',
             marker=dict(
                 size=1,
-                color='blue',# seg_result if seg_result is not None else df_tmp['norm'],
-    #             colorscale='Viridis',
+                color='blue',  # seg_result if seg_result is not None else df_tmp['norm'],
+                #             colorscale='Viridis',
                 opacity=0.8
             )
         )
@@ -840,8 +878,8 @@ class LyftDataset:
             mode='markers',
             marker=dict(
                 size=1,
-                color='yellow',# seg_result if seg_result is not None else df_tmp['norm'],
-    #             colorscale='Viridis',
+                color='yellow',  # seg_result if seg_result is not None else df_tmp['norm'],
+                #             colorscale='Viridis',
                 opacity=0.8
             )
         )
@@ -939,7 +977,6 @@ class LyftDataset:
         pc_input = pc_input[:, [2, 0, 1]]
         pc_input[:, 1] = -pc_input[:, 1]
         pc_input[:, 2] = -pc_input[:, 2]
-
 
         bg_flag = np.where(seg_result == 0)[0]
         df_tmp = pd.DataFrame(pc_input[bg_flag], columns=['x', 'y', 'z'])
@@ -1228,7 +1265,7 @@ class LyftDataset:
                 name='roi_boxes3d',
                 marker=dict(color='purple')
             )
-        data=[bg_scatter, fg_scatter, pre_box, gt_truth]
+        data = [bg_scatter, fg_scatter, pre_box, gt_truth]
         if rpn_cls_np is not None:
             data = [point_scatter, pre_box, gt_truth]
         if roi_boxes3d_np is not None:
@@ -1236,6 +1273,7 @@ class LyftDataset:
         fig = go.Figure()
         fig.update_layout(scene_aspectmode='data')
         fig.show()
+
 
 class LyftDatasetExplorer:
     """Helper class to list and visualize Lyft Dataset data. These are meant to serve as tutorials and templates for
@@ -2175,8 +2213,6 @@ if __name__ == "__main__":
     pc_input, pred_boxes, seg_result, gt_boxes = save_result
     # save_result
     LyftDataset.render_rpn_result(pc_input, pred_boxes, seg_result, gt_boxes)
-
-
 
     # pc_input, external_data, seg_result, gt_boxes = np.load('/home2/lhr/cdh_ws/kaggle/PointRCNN/data/debug/095d5bb88eb9cdd223b90d2a1475c0cf2f4b4c2a8aca82ba0ae51f6fba540440.npy', allow_pickle=True)
     # LyftDataset.render_debug_sample_3d_interactive(debug=True, pc_input=pc_input, external_data=external_data, seg_result=seg_result, gt_boxes=gt_boxes)

@@ -34,6 +34,11 @@ if not PYTHON_VERSION == 3:
 class gt_box_pointrcnn:
     #     (-y, -z, x, h, w, l, ry) is seven_num
     def __init__(self, seven_num, mode: str = 'kitti2lyft'):
+        """
+
+        :param seven_num: len=7, 普通型， len=8， 带有cls标签， len=9，带有score
+        :param mode:
+        """
         self.format = 'kitti'
         if mode == 'identity':
             self.center = seven_num[:3]
@@ -49,6 +54,7 @@ class gt_box_pointrcnn:
         #  因为lyft2kitti在预处理阶段完成了，所以此处没有涉及
         else:
             raise NotImplementedError
+
         self.ry = seven_num[6]
 
         if len(seven_num) == 8:
@@ -58,7 +64,7 @@ class gt_box_pointrcnn:
             self.score = seven_num[8]
             self.format = 'lyft_pred'
 
-            self.orientation = Quaternion(axis=[0, 0, 1], angle=self.ry)
+            self.orientation = Quaternion(axis=[0, 0, 1], angle= self.ry)
 
     @property
     def rotation_matrix(self) -> np.ndarray:
@@ -87,6 +93,7 @@ class gt_box_pointrcnn:
         """
         self.center = np.dot(quaternion.rotation_matrix, self.center)
         self.orientation = quaternion * self.orientation
+        self.ry = self.orientation.yaw_pitch_roll[0]
 
     def corners(self, wlh_factor: float = 1.0) -> np.ndarray:
         """Returns the bounding box corners.

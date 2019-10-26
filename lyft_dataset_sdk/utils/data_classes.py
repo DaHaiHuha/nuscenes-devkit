@@ -613,15 +613,7 @@ class Box:
         corners[0, :] = corners[0, :] + x
         corners[1, :] = corners[1, :] + y
         corners[2, :] = corners[2, :] + z
-        # # TODO np.ndarray 能不能直接合并在一起?不用经过list呢
-        # if xyz_conv is True:
-        #     corners = corners[[1, 2, 0], :]
-        #     corners[0, :] = -corners[0, :]
-        #     corners[1, :] = -corners[1, :]
-        # elif xyz_conv==-1:
-        #     corners = corners[[2, 0, 1], :]
-        #     corners[2, :] = -corners[2, :]
-        #     corners[1, :] = -corners[1, :]
+
         return corners
 
     def bottom_corners(self) -> np.ndarray:
